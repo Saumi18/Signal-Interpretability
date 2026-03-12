@@ -1,0 +1,128 @@
+Signal Generation Pipeline : bits → symbol mapping → upsampling → RRC pulse shaping → baseband I/Q signal
+
+
+Dataset : 1024 complex samples ; clean: 3 × 2000 = 6000 , jammed: 3 × 2000 = 6000 , mixed: 3 × 2000 = 6000 total 18000
+--------------------------------------------------------------------------
+PSK → phase transitions
+QAM → amplitude variation
+FSK → frequency hops
+GMSK → smooth frequency change
+AM → amplitude envelope
+FM → frequency sweep
+--------------------------------------------------------------------------
+BPSK
+QPSK
+8PSK
+16QAM
+64QAM
+2FSK
+4FSK
+GMSK
+AM
+FM
+---------------------------------------------------------------------------
+dataset/
+
+clean/
+   BPSK (5000)
+   QPSK (5000)
+   8PSK (5000)
+   ...
+   FM (5000)
+
+jammed/
+   BPSK (5000)
+   QPSK (5000)
+   ...
+   FM (5000)
+
+mixed/
+   BPSK_QPSK (500)
+   BPSK_8PSK (500)
+   ...
+   AM_FM (500)
+--------------------------------------------------------------------------------
+1. Shared CNN backbone :
+
+Spectrogram
+     │
+     ▼
+ResNet CNN Backbone
+     │
+     ▼
+Shared Feature Map
+
+2. Role of Bi-LSTM :
+- CNN extracts spectral patterns
+- Bi-LSTM captures temporal signal evolution.
+
+CNN Feature Maps
+        │
+        ▼
+Flatten along time axis
+        │
+        ▼
+Bi-LSTM
+        │
+        ▼
+Temporal RF Features
+
+3. Parameters:
+- ResNet shared backbone : 12M
+- Bi-LSTM : 2M
+- Classifier Heads : 1M
+- Total param : 15M
+
+-------------------------------------------------------------------------
+
+I/Q Signal
+   │
+   ▼
+STFT Spectrogram
+   │
+   ▼
+ResNet CNN Feature Extractor
+(shared backbone)
+   │
+   ▼
+Signal Condition Classifier
+(Jammed vs Not Jammed)
+   │
+   ├───────────────► JAMMED
+   │                     │
+   │                     ▼
+   │             Jamming Detection Output
+   │                     │
+   │                     ▼
+   │                  Grad-CAM
+   │
+   ▼
+Non-Jammed Signal
+   │
+   ▼
+Mixed vs Clean Classifier
+   │
+   ├──────────────► CLEAN
+   │                     │
+   │                     ▼
+   │             Modulation Classifier
+   │            (Bi-LSTM + Softmax)
+   │                     │
+   │                     ▼
+   │               Modulation Output
+   │                     │
+   │                     ▼
+   │                  Grad-CAM
+   │
+   ▼
+Mixed Signal
+   │
+   ▼
+Dual Modulation Detector
+(Bi-LSTM multi-label classifier)
+   │
+   ▼
+Two Modulation Outputs
+   │
+   ▼
+Grad-CAM Visualization
