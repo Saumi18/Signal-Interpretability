@@ -1,58 +1,67 @@
 import torch
-import cv2
 import numpy as np
-import matplotlib.pyplot as plt
+import cv2
 
 
 class GradCAM:
 
-    def __init__(self,model,layer):
+    def __init__(self, model, target_layer):
 
         self.model = model
-        self.layer = layer
+        self.target_layer = target_layer
 
         self.gradients = None
         self.activations = None
 
-        layer.register_forward_hook(self.forward_hook)
-        layer.register_backward_hook(self.backward_hook)
+        target_layer.register_forward_hook(self.forward_hook)
+        target_layer.register_full_backward_hook(self.backward_hook)
 
 
-    def forward_hook(self,module,input,output):
+    def forward_hook(self, module, input, output):
 
         self.activations = output
 
 
-    def backward_hook(self,module,grad_in,grad_out):
+    def backward_hook(self, module, grad_input, grad_output):
 
-        self.gradients = grad_out[0]
+        self.gradients = grad_output[0]
 
 
-    def generate(self,input_image,class_idx):
+    def generate(self, input_tensor, class_idx):
 
-        output = self.model(input_image)[2]
+        """
+        input_tensor shape:
+        (1,1,128,128)
+        """
+
+        features = self.model.backbone(input_tensor)
+
+        output = self.model.mod_classifier(features)
 
         self.model.zero_grad()
 
-        output[:,class_idx].backward()
+        score = output[:, class_idx]
 
-        grads = self.gradients
-        acts = self.activations
+        score.backward()
 
-        weights = torch.mean(grads,dim=(2,3))
+        gradients = self.gradients
+        activations = self.activations
 
-        cam = torch.zeros(acts.shape[2:]).to(input_image.device)
+        weights = torch.mean(gradients, dim=(2,3))
 
-        for i,w in enumerate(weights[0]):
+        cam = torch.zeros(
+            activations.shape[2:],
+            device=input_tensor.device
+        )
 
-            cam += w*acts[0,i]
+        for i, w in enumerate(weights[0]):
+            cam += w * activations[0, i]
 
-        cam = cam.cpu().detach().numpy()
-
-        cam = np.maximum(cam,0)
-
-        cam = cv2.resize(cam,(128,128))
-
-        cam = cam / cam.max()
+        cam = cam.detach().cpu().numpy()
+        
+        cam = np.maximum(cam, 0)
+        
+        cam = cv2.resize(cam, (128,128))
+        cam = cam / (cam.max() + 1e-8)
 
         return cam
