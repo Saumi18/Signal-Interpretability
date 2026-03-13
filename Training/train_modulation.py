@@ -2,36 +2,77 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 from utils.dataset_loader import RFdataset
-from models.full_model import RFSignalModel
-
+from models.classifiers import RFClassifier
+from tqdm import tqdm
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-dataset = RFdataset("dataset","mod")
+BATCH_SIZE = 32
+EPOCHS = 25
+LR = 1e-3
 
-loader = DataLoader(dataset,batch_size=32,shuffle=True)
+dataset_path = "/content/drive/MyDrive/spectrogram_matrices_dataset"
 
-model = RFSignalModel().to(device)
+train_dataset = RFdataset(dataset_path,"mod","train")
+val_dataset = RFdataset(dataset_path,"mod","val")
+
+train_loader = DataLoader(train_dataset,batch_size=BATCH_SIZE,shuffle=True)
+val_loader = DataLoader(val_dataset,batch_size=BATCH_SIZE)
+
+model = RFClassifier().to(device)
 
 criterion = nn.CrossEntropyLoss()
 
-optimizer = torch.optim.Adam(model.parameters(),lr=1e-4)
+optimizer = torch.optim.Adam(model.parameters(),lr=LR)
 
-for epoch in range(15):
+for epoch in range(EPOCHS):
 
-    for x,y in loader:
+    model.train()
+
+    total_loss = 0
+
+    for x,y in tqdm(train_loader):
 
         x = x.to(device)
-        y = y.to(device).long()
-
-        _,_,mod_out,_ = model(x)
-
-        loss = criterion(mod_out,y)
+        y = y.to(device)
 
         optimizer.zero_grad()
+
+        features = model.backbone(x)
+
+        out = model.mod_classifier(features)
+
+        loss = criterion(out,y)
 
         loss.backward()
 
         optimizer.step()
 
-    print("Epoch",epoch,"done")
+        total_loss += loss.item()
+
+    print("Epoch",epoch,"Loss",total_loss/len(train_loader))
+
+    model.eval()
+
+    correct = 0
+    total = 0
+
+    with torch.no_grad():
+
+        for x,y in val_loader:
+
+            x = x.to(device)
+            y = y.to(device)
+
+            features = model.backbone(x)
+
+            out = model.mod_classifier(features)
+
+            pred = torch.argmax(out,1)
+
+            correct += (pred==y).sum().item()
+            total += y.size(0)
+
+    print("Validation Accuracy:",correct/total)
+
+torch.save(model.state_dict(),"modulation_model.pth")
