@@ -2,35 +2,44 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 from utils.dataset_loader import RFdataset
-from models.full_model import RFSignalModel
-
+from models.classifiers import RFClassifier
+from tqdm import tqdm
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-dataset = RFdataset("dataset","jam")
+BATCH_SIZE = 32
+EPOCHS = 20
+LR = 1e-3
 
-loader = DataLoader(dataset,batch_size=32,shuffle=True)
+dataset_path = "/content/drive/MyDrive/spectrogram_matrices_dataset"
 
-model = RFSignalModel().to(device)
+train_dataset = RFdataset(dataset_path,"jam","train")
+val_dataset = RFdataset(dataset_path,"jam","val")
+
+train_loader = DataLoader(train_dataset,batch_size=BATCH_SIZE,shuffle=True)
+val_loader = DataLoader(val_dataset,batch_size=BATCH_SIZE)
+
+model = RFClassifier().to(device)
 
 criterion = nn.CrossEntropyLoss()
+optimizer = torch.optim.Adam(model.parameters(),lr=LR)
 
-optimizer = torch.optim.Adam(model.parameters(),lr=1e-4)
+for epoch in range(EPOCHS):
 
-for epoch in range(10):
+    model.train()
 
     total_loss = 0
 
-    for x,y in loader:
+    for x,y in tqdm(train_loader):
 
         x = x.to(device)
-        y = y.to(device).long()
-
-        jam_out,_,_,_ = model(x)
-
-        loss = criterion(jam_out,y)
+        y = y.to(device)
 
         optimizer.zero_grad()
+
+        out = model.jam_classifier(model.backbone(x))
+
+        loss = criterion(out,y)
 
         loss.backward()
 
@@ -38,4 +47,27 @@ for epoch in range(10):
 
         total_loss += loss.item()
 
-    print("Epoch:",epoch,"Loss:",total_loss)
+    print("Epoch",epoch,"Train Loss",total_loss/len(train_loader))
+
+    model.eval()
+
+    correct = 0
+    total = 0
+
+    with torch.no_grad():
+
+        for x,y in val_loader:
+
+            x = x.to(device)
+            y = y.to(device)
+
+            out = model.jam_classifier(model.backbone(x))
+
+            pred = torch.argmax(out,1)
+
+            correct += (pred==y).sum().item()
+            total += y.size(0)
+
+    print("Validation Accuracy:",correct/total)
+
+torch.save(model.state_dict(),"jamming_model.pth")
