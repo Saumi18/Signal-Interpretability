@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 from utils.dataset_loader import RFdataset
-from models.classifiers import RFClassifier
+from Models.classifiers import RFClassifier
 from tqdm import tqdm
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
