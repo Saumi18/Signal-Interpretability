@@ -6,7 +6,7 @@ import sys
 
 sys.path.append("..")
 
-from models.full_model import RFClassifier
+from Models.full_model import RFClassifier
 from utils.gradcam import GradCAM
 
 DATASET_PATH = "../spectrogram_matrices_dataset/clean/BPSK"
