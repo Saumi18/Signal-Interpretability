@@ -1,7 +1,7 @@
 import torch
 import numpy as np
 
-from Models.full_model import RFClassifier
+from models.full_model import RFClassifier
 from utils.signal_to_spectrogram import iq_to_spectrogram
 from utils.gradcam import GradCAM
 
