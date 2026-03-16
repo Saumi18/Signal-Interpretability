@@ -7,7 +7,7 @@ import sys
 
 sys.path.append("..")
 
-from Models.full_model import RFClassifier
+from models.full_model import RFClassifier
 from utils.gradcam import GradCAM
 
 MODEL_PATH = "../modulation_model.pth"
